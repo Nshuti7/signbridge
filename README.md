@@ -64,7 +64,7 @@ To avoid merge conflicts, only edit files you own. Change `src/types.ts` by team
 | `src/lib/handLandmarker.ts`          | Sign engine  | MediaPipe setup                    |
 | `src/hooks/useSignRecognizer.ts`     | Sign engine  | Main hook                          |
 | `src/components/SignToText.tsx`      | Sign engine  | Camera + training UI               |
-| `src/components/SpeechToSign.tsx`    | Teammate B   | Stub: default export, no props     |
+| `src/components/SpeechToSign.tsx`   | Teammate B   | Speech recognition and ASL letter cards |
 | `src/lib/gemma.ts`                   | Teammate C   | Stub: `cleanTranscript(raw)`       |
 | `src/App.tsx`                        | Teammate C   | Two-panel shell, finalized by C    |
 | `src/index.css`, `src/main.tsx`      | Shared       | Coordinate before editing          |
@@ -77,5 +77,5 @@ type Sample = { label: string; features: number[] }; // 129 numbers: left 63 + r
 type Prediction = { label: string; confidence: number };
 // <SignToText onText={(text: string) => void} />
 // cleanTranscript(raw: string): Promise<string>
-// <SpeechToSign /> (default export, no props)
+// <SpeechToSign /> (default export, no props; browser speech recognition is optional)
 ```
