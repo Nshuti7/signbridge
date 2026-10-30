@@ -22,8 +22,16 @@ body {
 h1, h2, h3 { margin: 0 0 0.5rem; }
 h3 { margin-top: 1.25rem; font-size: 1.1rem; }
 
-.app { max-width: 1200px; margin: 0 auto; padding: 1rem; }
-.two-panel { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
+.app { max-width: 1800px; margin: 0 auto; padding: 1rem clamp(1rem, 3vw, 2.5rem); }
+.two-panel { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+/* Wide screens: the sign panel gets about two thirds of the width, speech the rest. */
+@media (min-width: 1100px) { .two-panel { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); } }
+
+/* Inside the sign panel: camera on one side, text + training on the other. */
+.sign-layout { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .sign-layout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+.sign-col { min-width: 0; }
+h3.first { margin-top: 0; }
 
 .panel { background: var(--panel); border: 2px solid var(--border); border-radius: 12px; padding: 1rem; }
 .muted { color: var(--muted); }
@@ -35,7 +43,7 @@ h3 { margin-top: 1.25rem; font-size: 1.1rem; }
 .camera-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 1rem; text-align: center; background: rgba(0, 0, 0, 0.8); }
 
 .live { margin: 1rem 0; text-align: center; }
-.live-label { font-size: 5rem; font-weight: 800; line-height: 1.1; min-height: 1.1em; word-break: break-word; }
+.live-label { font-size: 4rem; font-weight: 800; line-height: 1.1; min-height: 1.1em; word-break: break-word; }
 .bar { height: 16px; border: 2px solid var(--border); border-radius: 8px; overflow: hidden; margin: 0.5rem 0; }
 .bar-fill { height: 100%; background: var(--accent); transition: width 0.1s linear; }
 
