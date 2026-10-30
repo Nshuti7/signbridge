@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { aslAlphabet, isSignable } from '../lib/aslAlphabet';
+import { cleanTranscript } from '../lib/gemma';
 
 interface SpeechRecognitionAlternative {
   transcript: string;
@@ -25,6 +26,7 @@ interface SpeechRecognitionInstance {
   lang: string;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
   start(): void;
   stop(): void;
 }
@@ -42,10 +44,13 @@ declare global {
 
 const SpeechToSign: React.FC = () => {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const transcriptRef = useRef('');
+  const shouldProcessSpeechRef = useRef(false);
   const [isSupported, setIsSupported] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [speechStatus, setSpeechStatus] = useState('Click the mic to speak.');
   const [processedText, setProcessedText] = useState('');
   const [language, setLanguage] = useState('en-US');
   const [manualInput, setManualInput] = useState('');
@@ -55,19 +60,6 @@ const SpeechToSign: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(500);
   const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
-
-  // 1. Simplification Logic
-  // Teammate C will eventually replace this local constant with an import from ../lib/gemma
-  const simplify = async (t: string) => {
-    try {
-      // Future: import { simplifyForSign } from "../lib/gemma";
-      // return await simplifyForSign(t);
-      return t; // Fallback / Current implementation
-    } catch (e) {
-      console.error("Simplification error, using original text", e);
-      return t;
-    }
-  };
 
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -81,24 +73,31 @@ const SpeechToSign: React.FC = () => {
     recognition.interimResults = true;
 
     recognition.onresult = (event) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
+      let fullTranscript = '';
+      for (let i = 0; i < event.results.length; ++i) {
         const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript;
-        } else {
-          interimTranscript += result[0].transcript;
-        }
+        fullTranscript += `${result[0].transcript} `;
       }
-      // We keep the transcript live, but we only "finalize" for signing when user stops or pauses
-      setTranscript(finalTranscript || interimTranscript);
+      const currentTranscript = fullTranscript.trim();
+      transcriptRef.current = currentTranscript;
+      setTranscript(currentTranscript);
     };
 
     recognition.onerror = (event) => {
-      console.error("Speech recognition error", event.error);
+      shouldProcessSpeechRef.current = false;
+      setSpeechStatus(
+        event.error === 'network'
+          ? 'Speech recognition needs a network connection. You can type text below instead.'
+          : `Speech recognition error: ${event.error}. You can type text below instead.`,
+      );
       setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      if (!shouldProcessSpeechRef.current) return;
+      shouldProcessSpeechRef.current = false;
+      void cleanTranscript(transcriptRef.current).then(setProcessedText);
     };
 
     return () => {
@@ -114,26 +113,32 @@ const SpeechToSign: React.FC = () => {
   const toggleListening = async () => {
     const recognition = recognitionRef.current;
     if (isListening) {
+      shouldProcessSpeechRef.current = true;
       recognition?.stop();
       setIsListening(false);
-      // Once stopped, we "simplify" the final result for signing
-      const simplified = await simplify(transcript);
-      setProcessedText(simplified);
     } else {
+      if (!recognition) return;
       setTranscript('');
+      transcriptRef.current = '';
       setProcessedText('');
       setPlaybackIndex(-1);
       setIsPlaying(false);
-      if (!recognition) return;
-      recognition?.start();
-      setIsListening(true);
+      setSpeechStatus('Listening...');
+      shouldProcessSpeechRef.current = false;
+      try {
+        recognition.start();
+        setIsListening(true);
+      } catch (error) {
+        setSpeechStatus(
+          error instanceof Error ? error.message : 'Could not start speech recognition.',
+        );
+      }
     }
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const simplified = await simplify(manualInput);
-    setProcessedText(simplified);
+    setProcessedText(await cleanTranscript(manualInput));
     setPlaybackIndex(-1);
     setIsPlaying(false);
   };
@@ -163,29 +168,26 @@ const SpeechToSign: React.FC = () => {
     const words = processedText.toUpperCase().split(' ');
     
     return words.map((word, wordIdx) => (
-      <div key={wordIdx} className="flex gap-2 mx-4 mb-4">
+      <div key={wordIdx} className="speech-word">
         {word.split('').map((char, charIdx) => {
           // Calculate global index for highlighting
           const globalIdx = words.slice(0, wordIdx).join(' ').length + charIdx;
           const isHighlighted = playbackIndex === globalIdx;
           
-          if (!isSignable(char)) return <span key={charIdx} className="text-gray-300">?</span>;
+          if (!isSignable(char)) return null;
 
           return (
             <div 
               key={charIdx}
-              className={`w-16 h-16 sm:w-20 sm:h-20 border-4 rounded-xl transition-all duration-200 flex items-center justify-center bg-white
-                ${isHighlighted ? 'border-blue-500 scale-110 shadow-lg ring-4 ring-blue-200' : 'border-gray-200 opacity-60'}`}
+              className={`speech-card${isHighlighted ? ' is-highlighted' : ''}`}
             >
               <img 
                 src={aslAlphabet[char]} 
                 alt={`ASL sign for ${char}`} 
-                className="w-full h-full object-contain p-1"
-                onError={(e) => {
-                  // Fallback if SVG is missing
-                  (e.target as HTMLImageElement).src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" rx="10" fill="%23eee"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="40" fill="%23999">${char}</text></svg>`;
-                }}
+                className="speech-card-image"
+                onError={(e) => e.currentTarget.parentElement?.classList.add('is-placeholder')}
               />
+              <span className="speech-card-placeholder" aria-hidden="true">{char}</span>
             </div>
           );
         })}
@@ -194,22 +196,20 @@ const SpeechToSign: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto flex flex-col gap-8">
+    <section className="panel speech-panel" aria-labelledby="speech-title">
       {!isSupported && (
-        <div className="p-4 bg-amber-100 text-amber-800 rounded-lg border border-amber-300" role="alert">
+        <div className="speech-alert" role="alert">
           Your browser does not support Speech Recognition. Please use Chrome or Edge, or use the manual input below.
         </div>
       )}
 
-      {/* Controls Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="flex flex-col gap-4 p-4 border rounded-xl shadow-sm bg-white">
-          <h2 className="text-xl font-bold">Voice Input</h2>
-          <div className="flex gap-2">
+      <div className="speech-controls">
+        <div className="speech-control-group">
+          <h2 id="speech-title">Speech to Sign</h2>
+          <div className="speech-control-row">
             <select 
               value={language} 
               onChange={(e) => setLanguage(e.target.value)}
-              className="p-2 border rounded"
               aria-label="Select language"
             >
               <option value="en-US">English (US)</option>
@@ -218,34 +218,29 @@ const SpeechToSign: React.FC = () => {
             </select>
             <button 
               onClick={toggleListening}
+              type="button"
               aria-label={isListening ? "Stop listening" : "Start listening"}
-              className={`flex-1 py-2 px-4 rounded-lg font-bold text-white transition-all ${
-                isListening ? 'bg-red-500 animate-pulse' : 'bg-green-600 hover:bg-green-700'
-              }`}
+              className={isListening ? 'danger' : ''}
             >
               {isListening ? '🛑 Stop Listening' : '🎤 Start Listening'}
             </button>
           </div>
-          <p className="text-sm text-gray-600 italic h-8">
-            {isListening ? `Listening... ${transcript}` : 'Click the mic to speak.'}
+          <p className="muted speech-status" role="status">
+            {isListening && transcript ? `${speechStatus} ${transcript}` : speechStatus}
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 p-4 border rounded-xl shadow-sm bg-white">
-          <h2 className="text-xl font-bold">Manual Input</h2>
-          <form onSubmit={handleManualSubmit} className="flex gap-2">
+        <div className="speech-control-group">
+          <h3>Manual Input</h3>
+          <form onSubmit={handleManualSubmit} className="speech-control-row">
             <input 
               type="text" 
               value={manualInput}
               onChange={(e) => setManualInput(e.target.value)}
               placeholder="Type text here..."
-              className="flex-1 p-2 border rounded"
               aria-label="Manual text input"
             />
-            <button 
-              type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
+            <button type="submit">
               Convert
             </button>
           </form>
@@ -254,48 +249,45 @@ const SpeechToSign: React.FC = () => {
 
       {/* Playback Controls */}
       {processedText && (
-        <div className="flex flex-wrap items-center gap-6 p-4 bg-gray-100 rounded-xl justify-center">
-          <div className="flex gap-2">
+        <>
+          <div className="speech-playback">
             <button 
               onClick={() => { setPlaybackIndex(-1); setIsPlaying(false); }}
-              className="p-3 bg-white border rounded-lg hover:bg-gray-50"
               aria-label="Replay"
             >
               🔄 Replay
             </button>
             <button 
               onClick={() => setIsPlaying(!isPlaying)}
-              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 min-w-[100px]"
               aria-label={isPlaying ? "Pause playback" : "Play playback"}
             >
               {isPlaying ? '⏸ Pause' : '▶ Play'}
             </button>
           </div>
           
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium">Speed:</label>
+          <div className="speech-speed">
+            <label htmlFor="playback-speed">Playback speed</label>
             <input 
+              id="playback-speed"
               type="range" min="100" max="1000" step="100" 
               value={playbackSpeed} 
               onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-              className="w-32"
               aria-label="Adjust playback speed"
             />
-            <span className="text-xs text-gray-500">{playbackSpeed}ms</span>
+            <span className="muted">{playbackSpeed} ms per letter</span>
           </div>
-        </div>
-      )}
 
-      {/* Visual Output */}
-      <div className="flex flex-wrap content-start justify-center p-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 min-h-[300px]">
-        {processedText ? renderCards() : (
-          <div className="text-gray-400 flex flex-col items-center gap-2">
-            <span className="text-5xl">✋</span>
-            <p>Your ASL cards will appear here</p>
+          <div className="speech-output">
+            <h3>Readable text</h3>
+            <p className="speech-readable-text">{processedText}</p>
+            <h3>Spell it letter by letter</h3>
+            <div className="speech-cards" aria-label="ASL fingerspelling cards">
+              {renderCards()}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+    </section>
   );
 };
 

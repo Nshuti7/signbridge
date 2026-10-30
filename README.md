@@ -41,6 +41,14 @@ signing: a one-handed sign is recorded with one hand visible, a two-handed sign 
 relative position is part of the sign). The camera preview is mirrored for comfort, but features
 are computed on the unmirrored image.
 
+## Speech to sign
+
+Type text under **Manual Input** and press **Convert**, or use a supported browser's speech
+recognition and press **Stop Listening** when finished. The result is displayed as normalized,
+sentence-cased text and spelled letter by letter. This formatting does not infer meaning, fix
+recognition mistakes, or translate English grammar into ASL grammar. Letter illustrations can be
+added under `public/asl/`; until then, letter tiles display as text.
+
 ### Sharing a dataset
 
 - **Export JSON** downloads `samples.json`; **Import JSON** merges a file into your data.
@@ -65,7 +73,7 @@ To avoid merge conflicts, only edit files you own. Change `src/types.ts` by team
 | `src/hooks/useSignRecognizer.ts`     | Sign engine  | Main hook                          |
 | `src/components/SignToText.tsx`      | Sign engine  | Camera + training UI               |
 | `src/components/SpeechToSign.tsx`   | Teammate B   | Speech recognition and ASL letter cards |
-| `src/lib/gemma.ts`                   | Teammate C   | Stub: `cleanTranscript(raw)`       |
+| `src/lib/gemma.ts`                   | Teammate C   | Local spacing and sentence-case formatter |
 | `src/App.tsx`                        | Teammate C   | Two-panel shell, finalized by C    |
 | `src/index.css`, `src/main.tsx`      | Shared       | Coordinate before editing          |
 
@@ -76,6 +84,6 @@ type Landmark = { x: number; y: number; z: number };
 type Sample = { label: string; features: number[] }; // 129 numbers: left 63 + right 63 + wrist offset 3
 type Prediction = { label: string; confidence: number };
 // <SignToText onText={(text: string) => void} />
-// cleanTranscript(raw: string): Promise<string>
+// cleanTranscript(raw: string): Promise<string> (formatting only; no grammar inference)
 // <SpeechToSign /> (default export, no props; browser speech recognition is optional)
 ```
