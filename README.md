@@ -36,7 +36,9 @@ curl -L -o public/hand_landmarker.task \
    to the transcript. To type a double letter ("LL"), take your hand out of view or show a
    different sign in between.
 
-Use the **same hand** you trained with. The camera preview is mirrored for comfort, but features
+Up to **two hands** are tracked. Train a sign with the same hands in view that you will use when
+signing: a one-handed sign is recorded with one hand visible, a two-handed sign with both (their
+relative position is part of the sign). The camera preview is mirrored for comfort, but features
 are computed on the unmirrored image.
 
 ### Sharing a dataset
@@ -71,7 +73,7 @@ To avoid merge conflicts, only edit files you own. Change `src/types.ts` by team
 
 ```ts
 type Landmark = { x: number; y: number; z: number };
-type Sample = { label: string; features: number[] }; // 63 numbers
+type Sample = { label: string; features: number[] }; // 129 numbers: left 63 + right 63 + wrist offset 3
 type Prediction = { label: string; confidence: number };
 // <SignToText onText={(text: string) => void} />
 // cleanTranscript(raw: string): Promise<string>

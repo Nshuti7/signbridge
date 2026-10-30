@@ -5,12 +5,12 @@ export const K = 5;
 
 /**
  * If even the CLOSEST training sample is farther than this, we say "unknown".
- * Units: normalized feature space (palm lengths, summed over 21 landmarks), so the
- * number is camera-independent. 63-dimensional distances between two takes of the
- * SAME sign are typically ~0.3-0.8; different signs are usually > 1.5. Tune this
- * if your dataset behaves differently.
+ * Units: normalized feature space (palm lengths), so the number is camera-independent.
+ * ESTIMATE, not measured: one-hand distances were guessed at ~1.2, and two hands add
+ * roughly sqrt(2) more dimensions worth of noise, hence 1.7. Tune it on real data:
+ * raise it if known signs show as unknown, lower it if random shapes get labelled.
  */
-export const UNKNOWN_DISTANCE = 1.2;
+export const UNKNOWN_DISTANCE = 1.7;
 
 function euclidean(a: number[], b: number[]): number {
   let sum = 0;

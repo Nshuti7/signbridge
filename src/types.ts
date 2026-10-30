@@ -9,7 +9,7 @@
 /** One MediaPipe hand landmark. x/y are normalized to the image (0..1); z is relative depth. */
 export type Landmark = { x: number; y: number; z: number };
 
-/** One labelled training example: the label plus its 63-number normalized feature vector. */
+/** One labelled training example: the label plus its normalized feature vector (129 numbers: two hands + their offset). */
 export type Sample = { label: string; features: number[] };
 
 /** A classifier result. `confidence` is in 0..1. */

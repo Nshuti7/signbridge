@@ -57,23 +57,23 @@ export default function SignToText({ onText }: SignToTextProps) {
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const lm = landmarksRef.current;
-      if (!lm) return;
-      // Landmarks are normalized 0..1, so multiply by the canvas size.
-      // No mirroring math here: CSS flips video AND canvas together (see .camera).
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "#00e5ff";
-      ctx.beginPath();
-      for (const { start, end } of HandLandmarker.HAND_CONNECTIONS) {
-        ctx.moveTo(lm[start].x * canvas.width, lm[start].y * canvas.height);
-        ctx.lineTo(lm[end].x * canvas.width, lm[end].y * canvas.height);
-      }
-      ctx.stroke();
-      ctx.fillStyle = "#ffeb3b";
-      for (const p of lm) {
+      // One skeleton per visible hand. Landmarks are normalized 0..1, so multiply by the
+      // canvas size. No mirroring math here: CSS flips video AND canvas together (see .camera).
+      for (const lm of landmarksRef.current) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#00e5ff";
         ctx.beginPath();
-        ctx.arc(p.x * canvas.width, p.y * canvas.height, 4, 0, Math.PI * 2);
-        ctx.fill();
+        for (const { start, end } of HandLandmarker.HAND_CONNECTIONS) {
+          ctx.moveTo(lm[start].x * canvas.width, lm[start].y * canvas.height);
+          ctx.lineTo(lm[end].x * canvas.width, lm[end].y * canvas.height);
+        }
+        ctx.stroke();
+        ctx.fillStyle = "#ffeb3b";
+        for (const p of lm) {
+          ctx.beginPath();
+          ctx.arc(p.x * canvas.width, p.y * canvas.height, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     };
     draw();

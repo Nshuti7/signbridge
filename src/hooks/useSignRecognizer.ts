@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { Landmark, Prediction, Sample } from "../types";
 import { createHandLandmarker } from "../lib/handLandmarker";
-import { FEATURE_LENGTH, normalizeLandmarks } from "../lib/normalize";
+import { FEATURE_LENGTH, normalizeHands } from "../lib/normalize";
 import { predict } from "../lib/knn";
 
 // ---------------------------------------------------------------------------
@@ -34,7 +34,8 @@ const GET_READY_MS = 1500;
 /** Give up if the hand was not visible long enough to collect all samples. */
 const RECORDING_TIMEOUT_MS = 6000;
 
-const STORAGE_KEY = "signbridge.samples.v1";
+// v2: features grew from 63 (one hand) to 129 (two hands). Old v1 samples are incompatible.
+const STORAGE_KEY = "signbridge.samples.v2";
 
 export type RecognizerStatus = "loading" | "ready" | "no-camera";
 export type RecordingPhase = "idle" | "get-ready" | "recording";
@@ -92,8 +93,8 @@ type ActiveRecording = {
 
 export function useSignRecognizer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  /** Latest raw landmarks (or null). The UI reads this to draw the skeleton without re-rendering. */
-  const landmarksRef = useRef<Landmark[] | null>(null);
+  /** Latest raw landmarks, one array per visible hand. The UI draws skeletons from this without re-rendering. */
+  const landmarksRef = useRef<Landmark[][]>([]);
 
   const [status, setStatus] = useState<RecognizerStatus>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -278,9 +279,15 @@ export function useSignRecognizer() {
 
       const now = performance.now();
       const result = landmarker.detectForVideo(video, now);
-      const raw = result.landmarks[0] as Landmark[] | undefined;
-      landmarksRef.current = raw ?? null;
-      const features = raw ? normalizeLandmarks(raw) : null;
+      const hands = result.landmarks.map((landmarks, i) => ({
+        landmarks: landmarks as Landmark[],
+        // handedness[i][0] is the top guess for hand i. Note MediaPipe assumes a mirrored
+        // (selfie) image, so with our unmirrored frames "Left"/"Right" may be swapped. That
+        // is harmless: we only need the label to be CONSISTENT between training and use.
+        side: result.handedness[i]?.[0]?.categoryName ?? "",
+      }));
+      landmarksRef.current = hands.map((h) => h.landmarks);
+      const features = normalizeHands(hands);
 
       const rec = recordingRef.current;
       if (rec) {
@@ -398,7 +405,7 @@ export function useSignRecognizer() {
     // Extras beyond the agreed list (needed by the UI):
     addSpace,
     backspace,
-    landmarksRef: landmarksRef as RefObject<Landmark[] | null>,
+    landmarksRef: landmarksRef as RefObject<Landmark[][]>,
     recordingPhase,
     error,
   };

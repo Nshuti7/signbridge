@@ -21,7 +21,7 @@ export async function createHandLandmarker(): Promise<HandLandmarker> {
     HandLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: MODEL_URL, delegate },
       runningMode: "VIDEO",
-      numHands: 1, // one hand keeps the feature vector a fixed 63 numbers
+      numHands: 2, // sign language uses both hands; features are padded to a fixed length
     });
 
   try {
