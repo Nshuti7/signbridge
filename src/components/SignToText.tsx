@@ -3,7 +3,6 @@ import type { ChangeEvent, FormEvent } from "react";
 import { HandLandmarker } from "@mediapipe/tasks-vision";
 import type { SignToTextProps } from "../types";
 import { useSignRecognizer } from "../hooks/useSignRecognizer";
-import { cleanTranscript } from "../lib/gemma";
 
 export default function SignToText({ onText }: SignToTextProps) {
   const {
@@ -28,21 +27,6 @@ export default function SignToText({ onText }: SignToTextProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [label, setLabel] = useState("");
   const [message, setMessage] = useState("");
-
-  // Gemma cleanup of the transcript. We remember which transcript the result belongs to
-  // (`source`) so the UI can hide it once the transcript has moved on.
-  const [cleaned, setCleaned] = useState<{ source: string; text: string } | null>(null);
-  const [cleaning, setCleaning] = useState(false);
-  const onClean = async () => {
-    const source = transcript;
-    setCleaning(true);
-    try {
-      // cleanTranscript never throws; on API failure it returns the local format.
-      setCleaned({ source, text: await cleanTranscript(source) });
-    } finally {
-      setCleaning(false);
-    }
-  };
 
   // Tell the parent about every transcript change (typing, space, backspace, clear).
   // Kept in an effect so it also covers changes made by the recognizer itself.
@@ -205,18 +189,7 @@ export default function SignToText({ onText }: SignToTextProps) {
         <button type="button" onClick={clearTranscript} disabled={!transcript}>
           Clear
         </button>
-        <button type="button" onClick={onClean} disabled={!transcript.trim() || cleaning}>
-          {cleaning ? "Cleaning..." : "Clean up with Gemma"}
-        </button>
       </div>
-      {/* Shown only while it still matches the transcript, so stale results disappear
-          as soon as more letters are signed. */}
-      {cleaned?.source === transcript && (
-        <div aria-live="polite">
-          <h3>Cleaned text</h3>
-          <div className="transcript">{cleaned.text}</div>
-        </div>
-      )}
 
       {/* ---- Training ---- */}
       <h3>Training</h3>
